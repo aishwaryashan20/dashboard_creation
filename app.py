@@ -1,7 +1,7 @@
 """
 Inflation and Household Consumption in Canada: A Comparative OECD Analysis Dashboard
 Author: Aishu
-Course: ALY6080 - Integrated Experiential Learning
+Course: ALY6110
 Dataset: OECD CPI and Household Consumption Data (2020-2024)
 """
 
@@ -570,7 +570,157 @@ if cons_df is None or len(cons_df) == 0:
 
 else:
     # Original correlation analysis when consumption data IS available
-    try:df.copy()
+    try:
+        # Prepare yearly aggregates for both datasets
+        cpi_yearly = cpi_df.copy()
+        cpi_yearly['Year'] = cpi_yearly[cpi_time].dt.year
+        cpi_agg = cpi_yearly.groupby([cpi_country, 'Year'])[cpi_value].mean().reset_index()
+        cpi_agg.columns = ['Country', 'Year', 'AvgInflation']
+        
+        cons_yearly = cons_df.copy()
+        cons_yearly['Year'] = cons_yearly[cons_time].dt.year
+        cons_agg = cons_yearly.groupby([cons_country, 'Year'])[cons_value].mean().reset_index()
+        cons_agg.columns = ['Country', 'Year', 'AvgConsumption']
+        
+        # Show what we have before merging
+        st.info(f"📊 CPI Data: {len(cpi_agg)} country-year combinations | Consumption Data: {len(cons_agg)} country-year combinations")
+        
+        with st.expander("🔍 View Countries in Each Dataset"):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write("**CPI Countries:**")
+                st.write(sorted(cpi_agg['Country'].unique()[:20]))
+        
+        # Try fuzzy matching for countries
+        country_mapping = {
+            'CAN': 'Canada', 'USA': 'United States', 'GBR': 'United Kingdom',
+            'DEU': 'Germany', 'FRA': 'France', 'ITA': 'Italy', 'JPN': 'Japan',
+            'AUS': 'Australia', 'ESP': 'Spain', 'NLD': 'Netherlands', 'BEL': 'Belgium',
+            'AUT': 'Austria', 'SWE': 'Sweden', 'NOR': 'Norway', 'DNK': 'Denmark',
+            'FIN': 'Finland', 'PRT': 'Portugal', 'GRC': 'Greece', 'IRL': 'Ireland',
+            'NZL': 'New Zealand', 'CHE': 'Switzerland', 'POL': 'Poland', 'CZE': 'Czech Republic',
+            'HUN': 'Hungary', 'KOR': 'Korea', 'MEX': 'Mexico', 'TUR': 'Turkey',
+            'CHL': 'Chile', 'ISL': 'Iceland', 'ISR': 'Israel', 'SVN': 'Slovenia',
+            'SVK': 'Slovak Republic', 'EST': 'Estonia', 'LVA': 'Latvia', 'LTU': 'Lithuania'
+        }
+        
+        reverse_mapping = {v: k for k, v in country_mapping.items()}
+        
+        def standardize_country(country):
+            if country in country_mapping:
+                return country_mapping[country]
+            elif country in reverse_mapping:
+                return reverse_mapping[country]
+            return country
+        
+        cpi_agg['Country_Std'] = cpi_agg['Country'].apply(standardize_country)
+        cons_agg['Country_Std'] = cons_agg['Country'].apply(standardize_country)
+        
+        # Merge on standardized country names
+        merged = pd.merge(
+            cpi_agg, cons_agg,
+            left_on=['Country_Std', 'Year'],
+            right_on=['Country_Std', 'Year'],
+            how='inner',
+            suffixes=('_cpi', '_cons')
+        )
+        
+        st.success(f"✅ Successfully merged: {len(merged)} data points across {merged['Country_Std'].nunique()} countries")
+        
+            # Remove outliers for better visualization
+            merged_clean = merged[
+                (merged['AvgInflation'] < merged['AvgInflation'].quantile(0.95)) &
+                (merged['AvgConsumption'] < merged['AvgConsumption'].quantile(0.95)) &
+                (merged['AvgInflation'] > merged['AvgInflation'].quantile(0.05))
+            ]
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                fig3 = px.scatter(
+                    merged_clean,
+                    x='AvgInflation',
+                    y='AvgConsumption',
+                    color='Country_Std',
+                    hover_data=['Year'],
+                    title='Inflation Rate vs Household Consumption',
+                    labels={'AvgInflation': 'Avg Inflation Rate (%)', 'AvgConsumption': 'Avg Consumption'},
+                    trendline="ols",
+                    trendline_scope="overall",
+                    trendline_color_override="red"
+                )
+                fig3.update_layout(height=450, showlegend=False)
+                st.plotly_chart(fig3, use_container_width=True)
+            
+            with col2:
+                canada_merged = merged[merged['Country_Std'].str.contains('Canad|CAN', case=False, na=False)]
+                
+                if len(canada_merged) > 0:
+                    fig3b = go.Figure()
+                    fig3b.add_trace(go.Scatter(
+                        x=canada_merged['Year'],
+                        y=canada_merged['AvgInflation'],
+                        name='Inflation Rate',
+                        line=dict(color='#e74c3c', width=3)
+                    ))
+                    
+                    cons_normalized = (canada_merged['AvgConsumption'] / canada_merged['AvgConsumption'].max()) * canada_merged['AvgInflation'].max()
+                    fig3b.add_trace(go.Scatter(
+                        x=canada_merged['Year'],
+                        y=cons_normalized,
+                        name='Consumption (normalized)',
+                        line=dict(color='#3498db', width=3)
+                    ))
+                    
+                    fig3b.update_layout(
+                        title='🍁 Canada: Inflation vs Consumption Trends',
+                        xaxis_title='Year',
+                        yaxis_title='Value',
+                        height=450,
+                        hovermode='x unified'
+                    )
+                    st.plotly_chart(fig3b, use_container_width=True)
+                else:
+                    fig4 = px.box(
+                        merged,
+                        x='Year',
+                        y='AvgInflation',
+                        title='Inflation Distribution by Year (All Countries)',
+                        color='Year',
+                        color_discrete_sequence=px.colors.sequential.Blues
+                    )
+                    fig4.update_layout(height=450, showlegend=False)
+                    st.plotly_chart(fig4, use_container_width=True)
+            
+            correlation = merged['AvgInflation'].corr(merged['AvgConsumption'])
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Correlation Coefficient", f"{correlation:.3f}")
+            with col2:
+                strength = "Strong" if abs(correlation) > 0.5 else "Moderate" if abs(correlation) > 0.3 else "Weak"
+                st.metric("Correlation Strength", strength)
+            with col3:
+                direction = "Positive ↗" if correlation > 0 else "Negative ↘"
+                st.metric("Direction", direction)
+            
+            st.subheader("📊 Interpretation")
+            if correlation > 0.5:
+                st.success("🔍 **Strong Positive Correlation:** Higher inflation associated with higher consumption expenditure.")
+            elif correlation > 0.3:
+                st.info("🔍 **Moderate Positive Correlation:** Some relationship exists between inflation and consumption.")
+            elif correlation < -0.3:
+                st.warning("🔍 **Negative Correlation:** Higher inflation tends to reduce consumption.")
+            else:
+                st.info("🔍 **Weak Correlation:** Inflation and consumption show limited direct relationship.")
+        
+        else:
+            st.warning(f"⚠️ Only {len(merged)} overlapping data points found.")
+    
+    except Exception as e:
+        st.error(f"Error in correlation analysis: {str(e)}")
+
+st.markdown("---")df.copy()
     cpi_yearly['Year'] = cpi_yearly[cpi_time].dt.year
     cpi_agg = cpi_yearly.groupby([cpi_country, 'Year'])[cpi_value].mean().reset_index()
     cpi_agg.columns = ['Country', 'Year', 'AvgInflation']
