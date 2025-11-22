@@ -1,7 +1,7 @@
 """
 Inflation and Household Consumption in Canada: A Comparative OECD Analysis Dashboard
-Author: Aishu
-Course: ALY6080 - Integrated Experiential Learning
+Author: Aishwarya 
+Course: ALY6110
 Dataset: OECD CPI and Household Consumption Data (2020-2024)
 """
 
@@ -65,13 +65,13 @@ st.title("📊 Inflation and Household Consumption in Canada")
 st.markdown("### A Comparative OECD Analysis (2020–2024)")
 st.markdown("---")
 
-# File paths - Direct Google Drive links
+# File paths - GitHub Release URLs
 USE_URLS = True
 
 if USE_URLS:
-    # Google Drive direct download links
-    CPI_FILE = "https://drive.google.com/uc?export=download&id=1h9JpCYbFHMSUGNAXwjUWMIKoZy_5InfS"
-    CONSUMPTION_FILE = "https://drive.google.com/uc?export=download&id=1GWyQ54b3_4vIYLKWr0zM8ToDYmEzBkf4"
+    # GitHub Release direct download links
+    CPI_FILE = "https://github.com/aishwaryashan20/dashboard_creation/releases/download/v1.0/Monthly.Consumer.Price.Indices.CPI.HICP.csv"
+    CONSUMPTION_FILE = "https://github.com/aishwaryashan20/dashboard_creation/releases/download/v1.0/Annual.Household.Final.Consumption.Expenditure.COICOP.csv"
 else:
     # Local file paths (for local testing)
     CPI_FILE = "Monthly Consumer Price Indices (CPI, HICP).csv"
@@ -172,7 +172,12 @@ def load_and_process_cpi(file_path):
 def load_and_process_consumption(file_path):
     """Load and automatically process Consumption dataset"""
     try:
-        df = pd.read_csv(file_path, low_memory=False)
+        # For Google Drive URLs, use different loading approach
+        if file_path.startswith('http'):
+            st.sidebar.info("📥 Downloading Consumption data from Google Drive...")
+            df = pd.read_csv(file_path, low_memory=False, on_bad_lines='skip', encoding='utf-8')
+        else:
+            df = pd.read_csv(file_path, low_memory=False, on_bad_lines='skip')
         
         st.sidebar.info(f"📂 Consumption file loaded: {len(df):,} total records")
         
