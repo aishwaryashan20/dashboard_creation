@@ -300,8 +300,9 @@ st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #7f8c8d; padding: 20px;'>
 <p><strong>Inflation and Household Consumption Analysis Dashboard</strong></p>
-<p>Data: OECD | Period: 2020-2024 | Created by Aishu for ALY6080</p>
+<p>Data: OECD | Period: 2020-2024 | Created by Aishwaya & Scarlett for ALY6110</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
