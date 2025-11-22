@@ -65,9 +65,17 @@ st.title("📊 Inflation and Household Consumption in Canada")
 st.markdown("### A Comparative OECD Analysis (2020–2024)")
 st.markdown("---")
 
-# File paths - These should match your actual file names
-CPI_FILE = "Monthly Consumer Price Indices (CPI, HICP).csv"
-CONSUMPTION_FILE = "Annual Household Final Consumption Expenditure (COICOP).csv"
+# File paths - Direct Google Drive links
+USE_URLS = True
+
+if USE_URLS:
+    # Google Drive direct download links
+    CPI_FILE = "https://drive.google.com/uc?export=download&id=1h9JpCYbFHMSUGNAXwjUWMIKoZy_5InfS"
+    CONSUMPTION_FILE = "https://drive.google.com/uc?export=download&id=1GWyQ54b3_4vIYLKWr0zM8ToDYmEzBkf4"
+else:
+    # Local file paths (for local testing)
+    CPI_FILE = "Monthly Consumer Price Indices (CPI, HICP).csv"
+    CONSUMPTION_FILE = "Annual Household Final Consumption Expenditure (COICOP).csv"
 
 @st.cache_data
 def load_and_process_cpi(file_path):
