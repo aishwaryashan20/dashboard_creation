@@ -81,7 +81,12 @@ else:
 def load_and_process_cpi(file_path):
     """Load and automatically process CPI dataset"""
     try:
-        df = pd.read_csv(file_path, low_memory=False)
+        # For Google Drive URLs, use different loading approach
+        if file_path.startswith('http'):
+            st.sidebar.info("📥 Downloading CPI data from Google Drive...")
+            df = pd.read_csv(file_path, low_memory=False, on_bad_lines='skip', encoding='utf-8')
+        else:
+            df = pd.read_csv(file_path, low_memory=False, on_bad_lines='skip')
         
         st.sidebar.info(f"📂 CPI file loaded: {len(df):,} total records")
         
