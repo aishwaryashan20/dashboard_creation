@@ -314,47 +314,32 @@ st.markdown('</div>', unsafe_allow_html=True)
 try:
     st.info("🔄 Loading full datasets to find overlapping years...")
     
-    # Reload full consumption dataset (all years)
+    # Reload full datasets (all years)
     if USE_URLS:
         cons_full = pd.read_csv(CONSUMPTION_FILE, low_memory=False, on_bad_lines='skip')
+        cpi_full = pd.read_csv(CPI_FILE, low_memory=False, on_bad_lines='skip')
     else:
         cons_full = pd.read_csv(CONSUMPTION_FILE, low_memory=False, on_bad_lines='skip')
-    
-    # Reload full CPI dataset (all years)  
-    if USE_URLS:
-        cpi_full = pd.read_csv(CPI_FILE, low_memory=False, on_bad_lines='skip')
-    else:
         cpi_full = pd.read_csv(CPI_FILE, low_memory=False, on_bad_lines='skip')
     
-    # Parse dates and convert to numeric values
+    # Use the already-detected column names from earlier
+    # Convert values to numeric
     cpi_full[cpi_value] = pd.to_numeric(cpi_full[cpi_value], errors='coerce')
     cons_full[cons_value] = pd.to_numeric(cons_full[cons_value], errors='coerce')
     
-    # Extract year more robustly - handle different formats
-    # CPI might be "1997-01-01" or "1997-01" or "1997"
-    # Consumption might be "1997" or "1997-01-01"
+    # Extract year robustly from both datasets
+    # Handle formats like "1997-01", "1997", "1997-01-01"
+    cpi_full['Year'] = cpi_full[cpi_time].astype(str).str.extract(r'(\d{4})')[0]
+    cpi_full['Year'] = pd.to_numeric(cpi_full['Year'], errors='coerce')
     
-    # For CPI: try multiple methods
-    if cpi_full[cpi_time].dtype == 'object':
-        # Extract first 4 digits as year
-        cpi_full['Year'] = cpi_full[cpi_time].astype(str).str.extract(r'(\d{4})')[0].astype(float)
-    else:
-        cpi_full[cpi_time] = pd.to_datetime(cpi_full[cpi_time], errors='coerce')
-        cpi_full['Year'] = cpi_full[cpi_time].dt.year
-    
-    # For Consumption: try multiple methods
-    if cons_full[cons_time].dtype == 'object':
-        # Extract first 4 digits as year
-        cons_full['Year'] = cons_full[cons_time].astype(str).str.extract(r'(\d{4})')[0].astype(float)
-    else:
-        cons_full[cons_time] = pd.to_datetime(cons_full[cons_time], errors='coerce')
-        cons_full['Year'] = cons_full[cons_time].dt.year
+    cons_full['Year'] = cons_full[cons_time].astype(str).str.extract(r'(\d{4})')[0]
+    cons_full['Year'] = pd.to_numeric(cons_full['Year'], errors='coerce')
     
     # Remove rows with invalid years
     cpi_full = cpi_full[cpi_full['Year'].notna()].copy()
     cons_full = cons_full[cons_full['Year'].notna()].copy()
     
-    # Convert Year to int
+    # Convert to int
     cpi_full['Year'] = cpi_full['Year'].astype(int)
     cons_full['Year'] = cons_full['Year'].astype(int)
     
@@ -363,10 +348,11 @@ try:
     cons_years = set(cons_full['Year'].unique())
     overlap_years = sorted(list(cpi_years & cons_years))
     
-    st.info(f"📊 **CPI covers:** {min(cpi_years)} to {max(cpi_years)} | **Consumption covers:** {min(cons_years)} to {max(cons_years)}")
-    st.success(f"✅ **Found {len(overlap_years)} overlapping years:** {min(overlap_years)} to {max(overlap_years)}")
+    if len(cpi_years) > 0 and len(cons_years) > 0:
+        st.info(f"📊 **CPI covers:** {min(cpi_years)} to {max(cpi_years)} | **Consumption covers:** {min(cons_years)} to {max(cons_years)}")
     
     if len(overlap_years) >= 5:
+        st.success(f"✅ **Found {len(overlap_years)} overlapping years:** {min(overlap_years)} to {max(overlap_years)}")
         # Filter to overlapping years
         cpi_overlap = cpi_full[cpi_full['Year'].isin(overlap_years)].copy()
         cons_overlap = cons_full[cons_full['Year'].isin(overlap_years)].copy()
