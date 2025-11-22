@@ -1,7 +1,7 @@
 """
 Inflation and Household Consumption in Canada: A Comparative OECD Analysis Dashboard
-Author: Aishwarya
-Course: ALY6110
+Author: Aishu
+Course: ALY6080 - Integrated Experiential Learning
 Dataset: OECD CPI and Household Consumption Data (2020-2024)
 """
 
@@ -312,51 +312,61 @@ households maintain spending despite price increases.
 st.markdown('</div>', unsafe_allow_html=True)
 
 try:
-    if cons_df is None or len(cons_df) == 0:
-        st.warning("⚠️ Loading full consumption dataset to find overlapping years...")
-        
-        # Reload consumption without 2020-2024 filter to get all available years
-        if USE_URLS:
-            cons_full = pd.read_csv(CONSUMPTION_FILE, low_memory=False, on_bad_lines='skip')
-        else:
-            cons_full = pd.read_csv(CONSUMPTION_FILE, low_memory=False, on_bad_lines='skip')
-        
-        # Parse dates
-        cons_full[cons_time] = pd.to_datetime(cons_full[cons_time], errors='coerce')
-        cons_full[cons_value] = pd.to_numeric(cons_full[cons_value], errors='coerce')
-        cons_full = cons_full[cons_full[cons_time].notna()].copy()
-    else:
-        # Reload to get all years, not just 2020-2024
-        if USE_URLS:
-            cons_full = pd.read_csv(CONSUMPTION_FILE, low_memory=False, on_bad_lines='skip')
-        else:
-            cons_full = pd.read_csv(CONSUMPTION_FILE, low_memory=False, on_bad_lines='skip')
-        
-        cons_full[cons_time] = pd.to_datetime(cons_full[cons_time], errors='coerce')
-        cons_full[cons_value] = pd.to_numeric(cons_full[cons_value], errors='coerce')
-        cons_full = cons_full[cons_full[cons_time].notna()].copy()
+    st.info("🔄 Loading full datasets to find overlapping years...")
     
-    # Reload CPI without filter too
+    # Reload full consumption dataset (all years)
+    if USE_URLS:
+        cons_full = pd.read_csv(CONSUMPTION_FILE, low_memory=False, on_bad_lines='skip')
+    else:
+        cons_full = pd.read_csv(CONSUMPTION_FILE, low_memory=False, on_bad_lines='skip')
+    
+    # Reload full CPI dataset (all years)  
     if USE_URLS:
         cpi_full = pd.read_csv(CPI_FILE, low_memory=False, on_bad_lines='skip')
     else:
         cpi_full = pd.read_csv(CPI_FILE, low_memory=False, on_bad_lines='skip')
     
-    cpi_full[cpi_time] = pd.to_datetime(cpi_full[cpi_time], errors='coerce')
+    # Parse dates and convert to numeric values
     cpi_full[cpi_value] = pd.to_numeric(cpi_full[cpi_value], errors='coerce')
-    cpi_full = cpi_full[cpi_full[cpi_time].notna()].copy()
+    cons_full[cons_value] = pd.to_numeric(cons_full[cons_value], errors='coerce')
+    
+    # Extract year more robustly - handle different formats
+    # CPI might be "1997-01-01" or "1997-01" or "1997"
+    # Consumption might be "1997" or "1997-01-01"
+    
+    # For CPI: try multiple methods
+    if cpi_full[cpi_time].dtype == 'object':
+        # Extract first 4 digits as year
+        cpi_full['Year'] = cpi_full[cpi_time].astype(str).str.extract(r'(\d{4})')[0].astype(float)
+    else:
+        cpi_full[cpi_time] = pd.to_datetime(cpi_full[cpi_time], errors='coerce')
+        cpi_full['Year'] = cpi_full[cpi_time].dt.year
+    
+    # For Consumption: try multiple methods
+    if cons_full[cons_time].dtype == 'object':
+        # Extract first 4 digits as year
+        cons_full['Year'] = cons_full[cons_time].astype(str).str.extract(r'(\d{4})')[0].astype(float)
+    else:
+        cons_full[cons_time] = pd.to_datetime(cons_full[cons_time], errors='coerce')
+        cons_full['Year'] = cons_full[cons_time].dt.year
+    
+    # Remove rows with invalid years
+    cpi_full = cpi_full[cpi_full['Year'].notna()].copy()
+    cons_full = cons_full[cons_full['Year'].notna()].copy()
+    
+    # Convert Year to int
+    cpi_full['Year'] = cpi_full['Year'].astype(int)
+    cons_full['Year'] = cons_full['Year'].astype(int)
     
     # Find overlapping years
-    cpi_full['Year'] = cpi_full[cpi_time].dt.year
-    cons_full['Year'] = cons_full[cons_time].dt.year
-    
     cpi_years = set(cpi_full['Year'].unique())
     cons_years = set(cons_full['Year'].unique())
-    overlap_years = sorted(cpi_years & cons_years)
+    overlap_years = sorted(list(cpi_years & cons_years))
     
-    st.info(f"📊 **Found {len(overlap_years)} overlapping years:** {min(overlap_years)} to {max(overlap_years)}")
+    st.info(f"📊 **CPI covers:** {min(cpi_years)} to {max(cpi_years)} | **Consumption covers:** {min(cons_years)} to {max(cons_years)}")
+    st.success(f"✅ **Found {len(overlap_years)} overlapping years:** {min(overlap_years)} to {max(overlap_years)}")
     
-    if len(overlap_years) > 5:
+    if len(overlap_years) >= 5:
         # Filter to overlapping years
         cpi_overlap = cpi_full[cpi_full['Year'].isin(overlap_years)].copy()
         cons_overlap = cons_full[cons_full['Year'].isin(overlap_years)].copy()
@@ -638,3 +648,4 @@ st.markdown("""
 <p>Data Source: OECD | Analysis Period: 2020-2024 | Created by Aishu for ALY6080</p>
 </div>
 """, unsafe_allow_html=True)
+
