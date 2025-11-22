@@ -1,7 +1,7 @@
 """
 Inflation and Household Consumption in Canada: A Comparative OECD Analysis Dashboard
-Author: Aishu
-Course: ALY6080 - Integrated Experiential Learning
+Author: Aishwarya & Scarlett
+Course: ALY6110
 """
 
 import streamlit as st
@@ -304,3 +304,4 @@ st.markdown("""
 <p>Data: OECD | Period: 2020-2024 | Created by Aishu for ALY6080</p>
 </div>
 """, unsafe_allow_html=True)
+
