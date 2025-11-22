@@ -70,9 +70,17 @@ def load_datasets_for_correlation():
     cpi = pd.read_csv(CPI_URL, low_memory=False, on_bad_lines='skip')
     cons = pd.read_csv(CONS_URL, low_memory=False, on_bad_lines='skip')
     
-    # Extract years
-    cpi['Year'] = cpi['TIME_PERIOD'].astype(str).str[:4].astype(int)
-    cons['Year'] = cons['TIME_PERIOD'].astype(str).str[:4].astype(int)
+    # Extract years safely
+    cpi['Year'] = pd.to_numeric(cpi['TIME_PERIOD'].astype(str).str[:4], errors='coerce')
+    cons['Year'] = pd.to_numeric(cons['TIME_PERIOD'].astype(str).str[:4], errors='coerce')
+    
+    # Remove rows with invalid years
+    cpi = cpi[cpi['Year'].notna()].copy()
+    cons = cons[cons['Year'].notna()].copy()
+    
+    # Convert to int
+    cpi['Year'] = cpi['Year'].astype(int)
+    cons['Year'] = cons['Year'].astype(int)
     
     # Convert values
     cpi['OBS_VALUE'] = pd.to_numeric(cpi['OBS_VALUE'], errors='coerce')
