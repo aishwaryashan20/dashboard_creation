@@ -1,7 +1,7 @@
 """
 Inflation and Household Consumption in Canada: A Comparative OECD Analysis Dashboard
 Author: Aishu
-Course: ALY6110
+Course: ALY6080 - Integrated Experiential Learning
 Dataset: OECD CPI and Household Consumption Data (2020-2024)
 """
 
@@ -172,7 +172,7 @@ def load_and_process_cpi(file_path):
 def load_and_process_consumption(file_path):
     """Load and automatically process Consumption dataset"""
     try:
-        # For Google Drive URLs, use different loading approach
+        # For GitHub URLs, use different loading approach
         if file_path.startswith('http'):
             st.sidebar.info("📥 Downloading Consumption data from GitHub...")
             df = pd.read_csv(file_path, low_memory=False, on_bad_lines='skip', encoding='utf-8')
@@ -190,12 +190,11 @@ def load_and_process_consumption(file_path):
             st.write("**Data types:**")
             st.write(df.dtypes)
         
-        # Auto-detect columns - exact matches first
+        # Auto-detect columns
         country_col = None
         time_col = None
         value_col = None
         
-        # Priority matches
         for col in ['REF_AREA', 'LOCATION', 'Country', 'COUNTRY']:
             if col in df.columns:
                 country_col = col
@@ -236,53 +235,40 @@ def load_and_process_consumption(file_path):
         
         st.sidebar.success(f"✅ Detected columns:\n- Country: {country_col}\n- Time: {time_col}\n- Value: {value_col}")
         
-        # Show sample values before conversion
-        with st.sidebar.expander("🔍 Sample Values Before Processing"):
-            st.write(f"**Sample {time_col} values:**")
-            st.write(df[time_col].head(10).tolist())
-            st.write(f"**Sample {value_col} values:**")
-            st.write(df[value_col].head(10).tolist())
-        
-        # Convert types
+        # Convert value to numeric
         df[value_col] = pd.to_numeric(df[value_col], errors='coerce')
         
-        # For annual data, try different date parsing strategies
-        # Annual data might be just "2020", "2021", etc.
-        try:
-            # First try standard datetime parsing
-            df[time_col] = pd.to_datetime(df[time_col], errors='coerce')
-        except:
-            # If that fails, try parsing as year only
-            df['Year'] = pd.to_numeric(df[time_col], errors='coerce')
-            df[time_col] = pd.to_datetime(df['Year'].astype(str) + '-01-01', errors='coerce')
+        # Parse dates - handle format like "1997-05"
+        df[time_col] = pd.to_datetime(df[time_col], errors='coerce')
         
-        # Check parsed dates
-        valid_dates = df[time_col].notna().sum()
-        st.sidebar.info(f"📅 Valid dates parsed: {valid_dates:,} out of {len(df):,}")
+        # Check what year range we actually have
+        valid_dates = df[time_col].notna()
+        years_available = df[valid_dates][time_col].dt.year.unique()
+        year_min = years_available.min() if len(years_available) > 0 else None
+        year_max = years_available.max() if len(years_available) > 0 else None
         
-        if valid_dates == 0:
-            st.sidebar.warning("⚠️ No dates were successfully parsed. Trying alternative method...")
-            # Try extracting year from string
-            df['year_extracted'] = df[time_col].astype(str).str.extract(r'(\d{4})')[0]
-            df[time_col] = pd.to_datetime(df['year_extracted'] + '-01-01', errors='coerce')
-            valid_dates = df[time_col].notna().sum()
-            st.sidebar.info(f"📅 After alternative parsing: {valid_dates:,} valid dates")
+        st.sidebar.warning(f"⚠️ **Consumption Data Year Range:** {year_min} to {year_max}")
         
-        # Filter 2020-2024
+        # Check if we have 2020-2024 data
+        has_recent_data = year_max >= 2020 if year_max else False
+        
+        if not has_recent_data:
+            st.sidebar.error(f"❌ **Consumption dataset does NOT contain 2020-2024 data!**")
+            st.sidebar.info(f"💡 Latest available year: {year_max}")
+            # Return None to indicate no usable data for our analysis
+            return None, country_col, time_col, value_col
+        
+        # Filter for available years (2020-2024 if possible, otherwise latest 5 years)
+        target_start = 2020
+        target_end = 2024
+        
         df_filtered = df[
             (df[time_col].notna()) & 
-            (df[time_col].dt.year >= 2020) & 
-            (df[time_col].dt.year <= 2024)
+            (df[time_col].dt.year >= target_start) & 
+            (df[time_col].dt.year <= target_end)
         ].copy()
         
         st.sidebar.success(f"✅ Consumption Data: {len(df_filtered):,} records (2020-2024)")
-        
-        if len(df_filtered) == 0:
-            st.sidebar.error("❌ No records found for 2020-2024 period!")
-            with st.sidebar.expander("🔍 Year Range in Data"):
-                years = df[df[time_col].notna()][time_col].dt.year.value_counts().sort_index()
-                st.write("**Available years:**")
-                st.write(years)
         
         return df_filtered, country_col, time_col, value_col
         
@@ -465,9 +451,126 @@ households maintain spending despite price increases.
 """)
 st.markdown('</div>', unsafe_allow_html=True)
 
-try:
-    # Prepare yearly aggregates for both datasets
-    cpi_yearly = cpi_df.copy()
+# INSIGHT 2: Correlation Analysis
+st.markdown('<div class="insight-box">', unsafe_allow_html=True)
+st.header("📈 Insight 2: Inflation-Consumption Correlation")
+st.markdown("""
+**Purpose:** Examines the relationship between inflation rates and household consumption expenditure.
+
+**Key Finding:** Shows whether higher inflation leads to reduced consumption (negative correlation) or if 
+households maintain spending despite price increases.
+""")
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Check if consumption data is available
+if cons_df is None or len(cons_df) == 0:
+    st.warning("⚠️ **Consumption data not available for 2020-2024 period.**")
+    st.info("💡 The consumption dataset may cover different years. Showing alternative CPI analysis instead.")
+    
+    # ALTERNATIVE: Show inflation impact analysis using CPI data only
+    st.subheader("📊 Alternative Analysis: Inflation Rate Patterns")
+    
+    try:
+        cpi_yearly = cpi_df.copy()
+        cpi_yearly['Year'] = cpi_yearly[cpi_time].dt.year
+        
+        # Calculate statistics by country
+        country_stats = cpi_yearly.groupby(cpi_country)[cpi_value].agg([
+            ('avg', 'mean'),
+            ('volatility', 'std'),
+            ('peak', 'max'),
+            ('min', 'min')
+        ]).reset_index()
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Top 10 highest average inflation
+            top10 = country_stats.nlargest(10, 'avg')
+            fig_top = px.bar(
+                top10,
+                x=cpi_country,
+                y='avg',
+                title='Top 10: Highest Average Inflation (2020-2024)',
+                labels={cpi_country: 'Country', 'avg': 'Average Inflation Rate (%)'},
+                color='avg',
+                color_continuous_scale='Reds'
+            )
+            fig_top.update_layout(height=400, showlegend=False)
+            st.plotly_chart(fig_top, use_container_width=True)
+        
+        with col2:
+            # Inflation volatility
+            volatile = country_stats.nlargest(10, 'volatility')
+            fig_vol = px.bar(
+                volatile,
+                x=cpi_country,
+                y='volatility',
+                title='Top 10: Most Volatile Inflation (2020-2024)',
+                labels={cpi_country: 'Country', 'volatility': 'Volatility (Std Dev)'},
+                color='volatility',
+                color_continuous_scale='Blues'
+            )
+            fig_vol.update_layout(height=400, showlegend=False)
+            st.plotly_chart(fig_vol, use_container_width=True)
+        
+        # Year-over-year changes
+        st.subheader("📈 Inflation Changes Over Time")
+        yearly_avg = cpi_yearly.groupby(['Year', cpi_country])[cpi_value].mean().reset_index()
+        yearly_pivot = yearly_avg.pivot(index=cpi_country, columns='Year', values=cpi_value)
+        
+        # Calculate 2020 to 2024 change if both years exist
+        years_available = sorted(yearly_pivot.columns)
+        if len(years_available) >= 2:
+            first_year = years_available[0]
+            last_year = years_available[-1]
+            yearly_pivot['Change'] = yearly_pivot[last_year] - yearly_pivot[first_year]
+            
+            top_changes = yearly_pivot.nlargest(15, 'Change')
+            
+            fig_change = px.bar(
+                x=top_changes.index,
+                y=top_changes['Change'],
+                title=f'Top 15: Inflation Rate Change ({first_year} to {last_year})',
+                labels={'x': 'Country', 'y': 'Percentage Point Change'},
+                color=top_changes['Change'],
+                color_continuous_scale='RdYlGn_r'
+            )
+            fig_change.update_layout(height=400)
+            st.plotly_chart(fig_change, use_container_width=True)
+            
+            # Canada highlight
+            canada_codes = ['CAN', 'Canada']
+            canada_data = [c for c in canada_codes if c in yearly_pivot.index]
+            if canada_data:
+                can_code = canada_data[0]
+                can_change = yearly_pivot.loc[can_code, 'Change']
+                can_avg = country_stats[country_stats[cpi_country] == can_code]['avg'].values[0]
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("🍁 Canada Avg Inflation", f"{can_avg:.2f}%")
+                with col2:
+                    st.metric("🍁 Canada Change", f"{can_change:+.2f}pp", f"{first_year} to {last_year}")
+                with col3:
+                    rank = (country_stats['avg'] > can_avg).sum() + 1
+                    st.metric("🍁 Canada Rank", f"#{rank}", f"out of {len(country_stats)}")
+        
+        st.info("""
+        📝 **Note:** This analysis shows inflation patterns using CPI data only. 
+        For full inflation-consumption correlation analysis, consumption expenditure data 
+        for the 2020-2024 period would be needed.
+        
+        **What this tells us:** Countries with higher average inflation typically experienced 
+        greater economic pressures. Volatility indicates how unstable prices were during this period.
+        """)
+        
+    except Exception as e:
+        st.error(f"Error in alternative analysis: {str(e)}")
+
+else:
+    # Original correlation analysis when consumption data IS available
+    try:df.copy()
     cpi_yearly['Year'] = cpi_yearly[cpi_time].dt.year
     cpi_agg = cpi_yearly.groupby([cpi_country, 'Year'])[cpi_value].mean().reset_index()
     cpi_agg.columns = ['Country', 'Year', 'AvgInflation']
@@ -783,4 +886,3 @@ st.markdown("""
 <p><em>Automatic analysis of inflation patterns and household consumption across OECD countries with focus on Canada.</em></p>
 </div>
 """, unsafe_allow_html=True)
-
