@@ -1,6 +1,6 @@
 """
 Inflation and Household Consumption in Canada: A Comparative OECD Analysis Dashboard
-Author: Aishwayra
+Author: Aishu
 Course: ALY6110
 Dataset: OECD CPI and Household Consumption Data (2020-2024)
 """
@@ -174,7 +174,7 @@ def load_and_process_consumption(file_path):
     try:
         # For Google Drive URLs, use different loading approach
         if file_path.startswith('http'):
-            st.sidebar.info("📥 Downloading Consumption data from Google Drive...")
+            st.sidebar.info("📥 Downloading Consumption data from GitHub...")
             df = pd.read_csv(file_path, low_memory=False, on_bad_lines='skip', encoding='utf-8')
         else:
             df = pd.read_csv(file_path, low_memory=False, on_bad_lines='skip')
@@ -186,7 +186,9 @@ def load_and_process_consumption(file_path):
             st.write("**Available columns:**")
             st.write(df.columns.tolist())
             st.write("**Sample data:**")
-            st.dataframe(df.head(3))
+            st.dataframe(df.head(5))
+            st.write("**Data types:**")
+            st.write(df.dtypes)
         
         # Auto-detect columns - exact matches first
         country_col = None
@@ -228,15 +230,43 @@ def load_and_process_consumption(file_path):
                     value_col = col
                     break
         
+        if not all([country_col, time_col, value_col]):
+            st.sidebar.error(f"❌ Could not detect all columns: Country={country_col}, Time={time_col}, Value={value_col}")
+            return None, None, None, None
+        
         st.sidebar.success(f"✅ Detected columns:\n- Country: {country_col}\n- Time: {time_col}\n- Value: {value_col}")
+        
+        # Show sample values before conversion
+        with st.sidebar.expander("🔍 Sample Values Before Processing"):
+            st.write(f"**Sample {time_col} values:**")
+            st.write(df[time_col].head(10).tolist())
+            st.write(f"**Sample {value_col} values:**")
+            st.write(df[value_col].head(10).tolist())
         
         # Convert types
         df[value_col] = pd.to_numeric(df[value_col], errors='coerce')
-        df[time_col] = pd.to_datetime(df[time_col], errors='coerce')
+        
+        # For annual data, try different date parsing strategies
+        # Annual data might be just "2020", "2021", etc.
+        try:
+            # First try standard datetime parsing
+            df[time_col] = pd.to_datetime(df[time_col], errors='coerce')
+        except:
+            # If that fails, try parsing as year only
+            df['Year'] = pd.to_numeric(df[time_col], errors='coerce')
+            df[time_col] = pd.to_datetime(df['Year'].astype(str) + '-01-01', errors='coerce')
         
         # Check parsed dates
         valid_dates = df[time_col].notna().sum()
-        st.sidebar.info(f"📅 Valid dates parsed: {valid_dates:,}")
+        st.sidebar.info(f"📅 Valid dates parsed: {valid_dates:,} out of {len(df):,}")
+        
+        if valid_dates == 0:
+            st.sidebar.warning("⚠️ No dates were successfully parsed. Trying alternative method...")
+            # Try extracting year from string
+            df['year_extracted'] = df[time_col].astype(str).str.extract(r'(\d{4})')[0]
+            df[time_col] = pd.to_datetime(df['year_extracted'] + '-01-01', errors='coerce')
+            valid_dates = df[time_col].notna().sum()
+            st.sidebar.info(f"📅 After alternative parsing: {valid_dates:,} valid dates")
         
         # Filter 2020-2024
         df_filtered = df[
@@ -246,6 +276,13 @@ def load_and_process_consumption(file_path):
         ].copy()
         
         st.sidebar.success(f"✅ Consumption Data: {len(df_filtered):,} records (2020-2024)")
+        
+        if len(df_filtered) == 0:
+            st.sidebar.error("❌ No records found for 2020-2024 period!")
+            with st.sidebar.expander("🔍 Year Range in Data"):
+                years = df[df[time_col].notna()][time_col].dt.year.value_counts().sort_index()
+                st.write("**Available years:**")
+                st.write(years)
         
         return df_filtered, country_col, time_col, value_col
         
@@ -746,3 +783,4 @@ st.markdown("""
 <p><em>Automatic analysis of inflation patterns and household consumption across OECD countries with focus on Canada.</em></p>
 </div>
 """, unsafe_allow_html=True)
+
