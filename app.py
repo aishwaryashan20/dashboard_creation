@@ -1,6 +1,6 @@
 """
 Inflation and Household Consumption in Canada: A Comparative OECD Analysis Dashboard
-Author: Aishwarya 
+Author: Aishwayra
 Course: ALY6110
 Dataset: OECD CPI and Household Consumption Data (2020-2024)
 """
@@ -440,10 +440,58 @@ try:
     cons_agg = cons_yearly.groupby([cons_country, 'Year'])[cons_value].mean().reset_index()
     cons_agg.columns = ['Country', 'Year', 'AvgConsumption']
     
-    # Merge datasets
-    merged = pd.merge(cpi_agg, cons_agg, on=['Country', 'Year'], how='inner')
+    # Show what we have before merging
+    st.info(f"📊 CPI Data: {len(cpi_agg)} country-year combinations | Consumption Data: {len(cons_agg)} country-year combinations")
     
-    if len(merged) > 10:
+    with st.expander("🔍 View Countries in Each Dataset"):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("**CPI Countries:**")
+            st.write(sorted(cpi_agg['Country'].unique()[:20]))
+        with col2:
+            st.write("**Consumption Countries:**")
+            st.write(sorted(cons_agg['Country'].unique()[:20]))
+    
+    # Try fuzzy matching for countries (CAN vs Canada, USA vs United States, etc.)
+    # Create a mapping of common country code variations
+    country_mapping = {
+        'CAN': 'Canada', 'USA': 'United States', 'GBR': 'United Kingdom',
+        'DEU': 'Germany', 'FRA': 'France', 'ITA': 'Italy', 'JPN': 'Japan',
+        'AUS': 'Australia', 'ESP': 'Spain', 'NLD': 'Netherlands', 'BEL': 'Belgium',
+        'AUT': 'Austria', 'SWE': 'Sweden', 'NOR': 'Norway', 'DNK': 'Denmark',
+        'FIN': 'Finland', 'PRT': 'Portugal', 'GRC': 'Greece', 'IRL': 'Ireland',
+        'NZL': 'New Zealand', 'CHE': 'Switzerland', 'POL': 'Poland', 'CZE': 'Czech Republic',
+        'HUN': 'Hungary', 'KOR': 'Korea', 'MEX': 'Mexico', 'TUR': 'Turkey',
+        'CHL': 'Chile', 'ISL': 'Iceland', 'ISR': 'Israel', 'SVN': 'Slovenia',
+        'SVK': 'Slovak Republic', 'EST': 'Estonia', 'LVA': 'Latvia', 'LTU': 'Lithuania'
+    }
+    
+    # Reverse mapping too
+    reverse_mapping = {v: k for k, v in country_mapping.items()}
+    
+    # Standardize country names in both datasets
+    def standardize_country(country):
+        if country in country_mapping:
+            return country_mapping[country]
+        elif country in reverse_mapping:
+            return reverse_mapping[country]
+        return country
+    
+    cpi_agg['Country_Std'] = cpi_agg['Country'].apply(standardize_country)
+    cons_agg['Country_Std'] = cons_agg['Country'].apply(standardize_country)
+    
+    # Merge on standardized country names
+    merged = pd.merge(
+        cpi_agg, cons_agg,
+        left_on=['Country_Std', 'Year'],
+        right_on=['Country_Std', 'Year'],
+        how='inner',
+        suffixes=('_cpi', '_cons')
+    )
+    
+    st.success(f"✅ Successfully merged: {len(merged)} data points across {merged['Country_Std'].nunique()} countries")
+    
+    if len(merged) > 5:
         # Remove outliers for better visualization
         merged_clean = merged[
             (merged['AvgInflation'] < merged['AvgInflation'].quantile(0.95)) &
