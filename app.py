@@ -208,8 +208,7 @@ if len(overlap) >= 5:
         with col1:
             fig3 = px.scatter(merged_clean, x='Inflation', y='Consumption',
                             color='Country', hover_data=['Year'],
-                            title=f'Inflation vs Consumption ({min(overlap)}-{max(overlap)})',
-                            trendline="ols", trendline_color_override="red")
+                            title=f'Inflation vs Consumption ({min(overlap)}-{max(overlap)})')
             fig3.update_layout(height=450, showlegend=False)
             st.plotly_chart(fig3, use_container_width=True)
         
